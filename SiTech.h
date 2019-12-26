@@ -53,6 +53,7 @@ enum SiTechErrors {PLUGIN_OK=0, NOT_CONNECTED, PLUGIN_CANT_CONNECT, PLUGIN_BAD_C
 #define PLUGIN_NB_ALIGNEMENT_TYPE 4
 #define PLUGIN_ALIGNEMENT_NAME_LENGHT 12
 
+#define FarFarAway  1500000000
 
 // Define Class for SiTech controller.
 class SiTech
@@ -79,7 +80,7 @@ public:
     int getRaAndDec(double &dRa, double &dDec);
     int syncTo(double dRa, double dDec);
 
-    int setTrackingRates(bool bTrackingOn, bool bIgnoreRates, double dTrackRaArcSecPerHr, double dTrackDecArcSecPerHr);
+    int setTrackingRates(bool bTrackingOn, bool bIgnoreRates, double dRaRateArcSecPerSec, double dDecRateArcSecPerSec);
     int getTrackRates(bool &bTrackingOn, double &dTrackRaArcSecPerHr, double &dTrackDecArcSecPerHr);
 
     int startSlewTo(double dRa, double dDec);
@@ -107,7 +108,6 @@ private:
     TheSkyXFacadeForDriversInterface    *m_pTsx;
     SleeperInterface                    *m_pSleeper;
 
-    bool    m_bDebugLog;
     char    m_szLogBuffer[PLUGIN_LOG_BUFFER_SIZE];
 
 	bool    m_bIsConnected;                               // Connected to the mount?
@@ -157,9 +157,13 @@ private:
 
     int     countsPerSecToSpeedValue(int cps);
     int     speedValueToCountsPerSec(int speed);
+    
     int     degsPerSec2MotorSpeed(double dDegsPerSec, int nTicksPerRev);
+    int     arcsecPerSec2MotorSpeed(double dArcsecPerSec, int nTicksPerRev);
+    
     double  motorSpeed2DegsPerSec(int nSpeed,  int nTicksPerRev);
-
+    double  motorSpeed2ArcsecPerSec(int nSpeed,  int nTicksPerRev);
+    
     double  stepToDeg(int nSteps, int nTicksPerRev);
     int     degToSteps(double dDegs,  int nTicksPerRev);
 

@@ -394,17 +394,12 @@ bool X2Mount::isSynced(void)
 int X2Mount::setTrackingRates(const bool& bTrackingOn, const bool& bIgnoreRates, const double& dRaRateArcSecPerSec, const double& dDecRateArcSecPerSec)
 {
     int nErr = SB_OK;
-    double dTrackRaArcSecPerHr;
-    double dTrackDecArcSecPerHr;
     if(!m_bLinked)
         return ERR_NOLINK;
 
     X2MutexLocker ml(GetMutex());
 
-    dTrackRaArcSecPerHr = dRaRateArcSecPerSec * 3600;
-    dTrackDecArcSecPerHr = dDecRateArcSecPerSec * 3600;
-
-    nErr = mSiTech.setTrackingRates(bTrackingOn, bIgnoreRates, dTrackRaArcSecPerHr, dTrackDecArcSecPerHr);
+    nErr = mSiTech.setTrackingRates(bTrackingOn, bIgnoreRates, dRaRateArcSecPerSec, dDecRateArcSecPerSec);
     return nErr;
 	
 }

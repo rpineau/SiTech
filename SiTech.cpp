@@ -6,7 +6,6 @@ SiTech::SiTech()
 
 	m_bIsConnected = false;
 
-    m_bDebugLog = true;
     m_bJNOW = false;
 
     m_b24h = false;
@@ -14,6 +13,9 @@ SiTech::SiTech()
     m_bTimeSetOnce = false;
     m_bLimitCached = false;
 
+    m_nRaAzTickPerRev = 1;
+    m_nDecAltTickPerRev = 1;
+    
 #ifdef PLUGIN_DEBUG
 #if defined(SB_WIN_BUILD)
     m_sLogfilePath = getenv("HOMEDRIVE");
@@ -83,6 +85,9 @@ int SiTech::Connect(char *pszPort)
     if(nErr) {
         m_bIsConnected = false;
     }
+    nErr = getRaAzTickPerRev(m_nRaAzTickPerRev);
+    nErr = getDecAltTickPerRev(m_nDecAltTickPerRev);
+    
     return nErr;
 }
 
@@ -242,10 +247,10 @@ int SiTech::readResponse(char *szRespBuffer, int nBufferLen, int nTimeout )
             break;
         }
         ulTotalBytesRead += ulBytesRead;
-    } while (*pszBufPtr++ != 0x0a && ulTotalBytesRead < nBufferLen );
+    } while (*pszBufPtr++ != 0x0d && ulTotalBytesRead < nBufferLen );
 
     if(ulTotalBytesRead)
-        *(pszBufPtr-1) = 0; //remove the \n
+        *(pszBufPtr-1) = 0; //remove the \r
 
     #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
                 ltime = time(NULL);
@@ -285,8 +290,16 @@ int SiTech::getRaAndDec(double &dRa, double &dDec)
 {
     int nErr = PLUGIN_OK;
     char szResp[SERIAL_BUFFER_SIZE];
-    int nTmp;
-    
+    int nTmp = 0;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    ltime = time(NULL);
+    timestamp = asctime(localtime(&ltime));
+    timestamp[strlen(timestamp) - 1] = 0;
+    fprintf(Logfile, "[%s] [SiTech::getRaAndDec]\n", timestamp);
+    fflush(Logfile);
+#endif
+
     // get Ra/Az
     nErr = sendCommand(std::string("Y\r"), szResp, SERIAL_BUFFER_SIZE);
     if(nErr) {
@@ -302,8 +315,19 @@ int SiTech::getRaAndDec(double &dRa, double &dDec)
     if(szResp[0] == 'Y') {
         nTmp = atoi(&szResp[1]);
         dRa = stepToDeg(nTmp, m_nRaAzTickPerRev);
+        #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+            ltime = time(NULL);
+            timestamp = asctime(localtime(&ltime));
+            timestamp[strlen(timestamp) - 1] = 0;
+            fprintf(Logfile, "[%s] [SiTech::getRaAndDec] Ra/Az nTmp = %d\n", timestamp, nTmp);
+            fprintf(Logfile, "[%s] [SiTech::getRaAndDec] Ra/Az dRa = %3.2f\n", timestamp, dRa);
+            fflush(Logfile);
+        #endif
     }
+    else
+        return COMMAND_FAILED;
     
+
     // get Dec/Alt
     nErr = sendCommand(std::string("X\r"), szResp, SERIAL_BUFFER_SIZE);
     if(nErr) {
@@ -318,8 +342,18 @@ int SiTech::getRaAndDec(double &dRa, double &dDec)
     #endif
     if(szResp[0] == 'X') {
         nTmp = atoi(&szResp[1]);
-        dRa = stepToDeg(nTmp, m_nDecAltTickPerRev);
+        dDec = stepToDeg(nTmp, m_nDecAltTickPerRev);
+        #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+            ltime = time(NULL);
+            timestamp = asctime(localtime(&ltime));
+            timestamp[strlen(timestamp) - 1] = 0;
+            fprintf(Logfile, "[%s] [SiTech::getRaAndDec] Ra/Az nTmp = %d\n", timestamp, nTmp);
+            fprintf(Logfile, "[%s] [SiTech::getRaAndDec] Ra/Az dDEc = %3.2f\n", timestamp, dDec);
+            fflush(Logfile);
+        #endif
     }
+    else
+        return COMMAND_FAILED;
 
     #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
         ltime = time(NULL);
@@ -338,7 +372,9 @@ int SiTech::getRaAndDec(double &dRa, double &dDec)
 int SiTech::syncTo(double dRa, double dDec)
 {
     int nErr = PLUGIN_OK;
-
+    int nStepPos;
+    std::string sCmd;
+    
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
     ltime = time(NULL);
     timestamp = asctime(localtime(&ltime));
@@ -347,16 +383,55 @@ int SiTech::syncTo(double dRa, double dDec)
     fprintf(Logfile, "[%s] [SiTech::syncTo] Dec : %f\n", timestamp, dDec);
     fflush(Logfile);
 #endif
+    nStepPos = degToSteps(dRa, m_nRaAzTickPerRev);
+    #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+        ltime = time(NULL);
+        timestamp = asctime(localtime(&ltime));
+        timestamp[strlen(timestamp) - 1] = 0;
+        fprintf(Logfile, "[%s] [SiTech::syncTo] Ra nStepPos : %d\n", timestamp, nStepPos);
+        fflush(Logfile);
+    #endif
 
+
+    sCmd = "YF";
+    sCmd += std::to_string(nStepPos);
+    sCmd += "\r";
+    nErr = sendCommand(sCmd, nullptr, SERIAL_BUFFER_SIZE);
+    if(nErr)
+        return nErr;
+
+    nStepPos = degToSteps(dDec, m_nDecAltTickPerRev);
+    #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+        ltime = time(NULL);
+        timestamp = asctime(localtime(&ltime));
+        timestamp[strlen(timestamp) - 1] = 0;
+        fprintf(Logfile, "[%s] [SiTech::syncTo] Dec nStepPos : %d\n", timestamp, nStepPos);
+        fflush(Logfile);
+    #endif
+    sCmd = "XF";
+    sCmd += std::to_string(nStepPos);
+    sCmd += "\r";
+    nErr = sendCommand(sCmd, nullptr, SERIAL_BUFFER_SIZE);
+    if(nErr)
+        return nErr;
+
+    //now enable tracking at sidereal rate
+    setTrackingRates(true, true, 0, 0);
+    
     return nErr;
+
 }
 
 #pragma mark - tracking rates
-int SiTech::setTrackingRates(bool bTrackingOn, bool bIgnoreRates, double dTrackRaArcSecPerHr, double dTrackDecArcSecPerHr)
+int SiTech::setTrackingRates(bool bTrackingOn, bool bIgnoreRates, double dRaRateArcSecPerSec, double dDecRateArcSecPerSec)
 {
     int nErr = PLUGIN_OK;
     char szResp[SERIAL_BUFFER_SIZE];
-
+    std::string sCmd;
+    int nTarget;
+    double dRaSpeed;
+    int nMotorSpeed;
+    
     if(!bTrackingOn) { // stop tracking
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
         ltime = time(NULL);
@@ -365,9 +440,10 @@ int SiTech::setTrackingRates(bool bTrackingOn, bool bIgnoreRates, double dTrackR
         fprintf(Logfile, "[%s] [SiTech::setTrackingRates] setting to Drift\n", timestamp);
         fflush(Logfile);
 #endif
-        // nErr = sendCommand("!RStrDrift;", szResp, SERIAL_BUFFER_SIZE);
+        nErr = sendCommand(std::string("YN\r"), nullptr, SERIAL_BUFFER_SIZE);
+        nErr |= sendCommand(std::string("XN\r"), nullptr, SERIAL_BUFFER_SIZE);
     }
-    else if(bTrackingOn && bIgnoreRates) { // sidereal
+    else if(bTrackingOn ) {
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
         ltime = time(NULL);
         timestamp = asctime(localtime(&ltime));
@@ -375,27 +451,43 @@ int SiTech::setTrackingRates(bool bTrackingOn, bool bIgnoreRates, double dTrackR
         fprintf(Logfile, "[%s] [SiTech::setTrackingRates] setting to Sidereal\n", timestamp);
         fflush(Logfile);
 #endif
-        // nErr = sendCommand("!RStrSidereal;", szResp, SERIAL_BUFFER_SIZE);
-    }
-    else { // custom rate
-#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
-        ltime = time(NULL);
-        timestamp = asctime(localtime(&ltime));
-        timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(Logfile, "[%s] [SiTech::setTrackingRates] setting to Custom\n", timestamp);
-        fprintf(Logfile, "[%s] [SiTech::setTrackingRates] dTrackRaArcSecPerHr = %f\n", timestamp, dTrackRaArcSecPerHr);
-        fprintf(Logfile, "[%s] [SiTech::setTrackingRates] dTrackDecArcSecPerHr = %f\n", timestamp, dTrackDecArcSecPerHr);
-        fflush(Logfile);
-#endif
-        snprintf(m_szLogBuffer,PLUGIN_LOG_BUFFER_SIZE,"[SiTech::setTrackingRates] Setting customr tracking rate. dTrackRaArcSecPerHr = %f , dTrackDecArcSecPerHr = %f", dTrackRaArcSecPerHr, dTrackDecArcSecPerHr);
-        m_pLogger->out(m_szLogBuffer);
-        nErr = setCustomTRateOffsetRA(dTrackRaArcSecPerHr);
-        nErr |= setCustomTRateOffsetDec(dTrackDecArcSecPerHr);
-        if(nErr) {
-            return nErr; // if we cant set the rate no need to switch to custom.
+        // Sidereal = 15.0410681 arcsecPerSec
+        // dRaSpeed = dRaRateArcSecPerSec + Sidereal
+        dRaSpeed = dRaRateArcSecPerSec + 15.0410681;
+        nMotorSpeed = arcsecPerSec2MotorSpeed(dRaSpeed, m_nRaAzTickPerRev);
+        // Target should be set depending on tracking sign
+        if(dRaRateArcSecPerSec <0) {
+            nTarget = -FarFarAway;
+            nMotorSpeed = abs(nMotorSpeed);
         }
-        // nErr = sendCommand("!RStrCustom;", szResp, SERIAL_BUFFER_SIZE);
+        else {
+            nTarget = FarFarAway;
+        }
+        
+        sCmd = "Y";
+        sCmd += std::to_string(nTarget);
+        sCmd += "S";
+        sCmd += std::to_string(nMotorSpeed);
+        sCmd += "\r";
+        nErr = sendCommand(sCmd, nullptr, SERIAL_BUFFER_SIZE);
+
+        // repeat for Dec except without sidereal.
+        nMotorSpeed = arcsecPerSec2MotorSpeed(dDecRateArcSecPerSec, m_nRaAzTickPerRev);
+        // Target should be set depending on tracking sign
+        if(dDecRateArcSecPerSec < 0) {
+           nTarget = -FarFarAway;
+           nMotorSpeed = abs(nMotorSpeed);
+       }
+        else
+            nTarget = FarFarAway;
+        sCmd = "X";
+        sCmd += std::to_string(nTarget);
+        sCmd += "S";
+        sCmd += std::to_string(nMotorSpeed);
+        sCmd += "\r";
+        nErr = sendCommand(sCmd, nullptr, SERIAL_BUFFER_SIZE);
     }
+
     return nErr;
 }
 
@@ -650,7 +742,10 @@ int SiTech::isSlewToComplete(bool &bComplete)
         // we're checking for comletion to quickly, assume it's moving for now
         return nErr;
     }
-
+    
+    bComplete = true;
+    return nErr;
+    
     // nErr = sendCommand("!GGgr;", szResp, SERIAL_BUFFER_SIZE);
     if(nErr)
         return nErr;
@@ -760,18 +855,15 @@ int SiTech::setRefractionCorrEnabled(bool bEnable)
 int SiTech::Abort()
 {
     int nErr = PLUGIN_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
 
-    // nErr = sendCommand("!XXxx;", szResp, SERIAL_BUFFER_SIZE);
+    nErr = sendCommand(std::string("XN\r"), nullptr, SERIAL_BUFFER_SIZE);
+    nErr |= sendCommand(std::string("YN\r"), nullptr, SERIAL_BUFFER_SIZE);
+
     return nErr;
 }
 
-#pragma mark - time and site methods
-
 
 #pragma mark - Special commands & functions
-
-
 
 int SiTech::countsPerSecToSpeedValue(int cps)
 {
@@ -789,6 +881,16 @@ int SiTech::degsPerSec2MotorSpeed(double dDegsPerSec, int nTicksPerRev)
     return int(round(nTicksPerRev * dDegsPerSec * 0.09321272116971));
 }
 
+int SiTech::arcsecPerSec2MotorSpeed(double dArcsecPerSec, int nTicksPerRev)
+{
+    return int(round(nTicksPerRev * dArcsecPerSec/3600 * 0.09321272116971));
+}
+
+double SiTech::motorSpeed2ArcsecPerSec(int nSpeed,  int nTicksPerRev)
+{
+    return ((double(nSpeed) / double(nTicksPerRev)) * 10.7281494140625)*3600;
+}
+
 double SiTech::motorSpeed2DegsPerSec(int nSpeed,  int nTicksPerRev)
 {
     return (double(nSpeed) / double(nTicksPerRev)) * 10.7281494140625;
@@ -802,7 +904,7 @@ int SiTech::getRaAzTickPerRev(int &nRaAzTickPerRev)
     if(!m_bIsConnected)
         return NOT_CONNECTED;
 
-    // nErr = sendCommand(std::string("XXV\r"), szResp, SERIAL_BUFFER_SIZE);
+    nErr = sendCommand(std::string("XXV\r"), szResp, SERIAL_BUFFER_SIZE);
     if(nErr)
         return nErr;
     if(szResp[0] == 'V') {
@@ -821,7 +923,7 @@ int SiTech::getDecAltTickPerRev(int &nDecAltTickPerRev)
     if(!m_bIsConnected)
         return NOT_CONNECTED;
 
-    // nErr = sendCommand(std::string("XXU\r"), szResp, SERIAL_BUFFER_SIZE);
+    nErr = sendCommand(std::string("XXU\r"), szResp, SERIAL_BUFFER_SIZE);
     if(nErr)
         return nErr;
     if(szResp[0] == 'U') {
