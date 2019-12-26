@@ -20,21 +20,6 @@ X2Mount::X2Mount(const char* pszDriverSelection,
 	m_pIOMutex						= pIOMutex;
 	m_pTickCount					= pTickCount;
 	
-#ifdef PLUGIN_X2_DEBUG
-#if defined(SB_WIN_BUILD)
-    m_sLogfilePath = getenv("HOMEDRIVE");
-    m_sLogfilePath += getenv("HOMEPATH");
-    m_sLogfilePath += "\\SiTech_X2_Logfile.txt";
-#elif defined(SB_LINUX_BUILD)
-    m_sLogfilePath = getenv("HOME");
-    m_sLogfilePath += "/SiTech_X2_Logfile.txt";
-#elif defined(SB_MAC_BUILD)
-    m_sLogfilePath = getenv("HOME");
-    m_sLogfilePath += "/SiTech_X2_Logfile.txt";
-#endif
-	LogFile = fopen(m_sLogfilePath.c_str(), "w");
-#endif
-	
 	
 	m_bSynced = false;
 	m_bParked = false;
@@ -75,14 +60,6 @@ X2Mount::~X2Mount()
 		delete m_pIOMutex;
 	if (m_pTickCount)
 		delete m_pTickCount;
-	
-#ifdef PLUGIN_X2_DEBUG
-	// Close LogFile
-	if (LogFile) {
-        fflush(LogFile);
-		fclose(LogFile);
-	}
-#endif
 	
 }
 
@@ -130,28 +107,9 @@ int X2Mount::startOpenLoopMove(const MountDriverInterface::MoveDir& Dir, const i
     X2MutexLocker ml(GetMutex());
 
 	m_CurrentRateIndex = nRateIndex;
-#ifdef PLUGIN_X2_DEBUG
-	if (LogFile) {
-		time_t ltime = time(NULL);
-		char *timestamp = asctime(localtime(&ltime));
-		timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(LogFile, "[%s] startOpenLoopMove called Dir: %d , Rate: %d\n", timestamp, Dir, nRateIndex);
-        fflush(LogFile);
-	}
-#endif
 
     nErr = mSiTech.startOpenSlew(Dir, nRateIndex);
     if(nErr) {
-#ifdef PLUGIN_X2_DEBUG
-        if (LogFile) {
-            time_t ltime = time(NULL);
-            char *timestamp = asctime(localtime(&ltime));
-            timestamp[strlen(timestamp) - 1] = 0;
-            fprintf(LogFile, "[%s] startOpenLoopMove ERROR %d\n", timestamp, nErr);
-            fflush(LogFile);
-        }
-#endif
-        m_pLogger->out("startOpenLoopMove ERROR");
         return ERR_CMDFAILED;
     }
     return SB_OK;
@@ -165,28 +123,8 @@ int X2Mount::endOpenLoopMove(void)
 
     X2MutexLocker ml(GetMutex());
 
-#ifdef PLUGIN_X2_DEBUG
-	if (LogFile){
-		time_t ltime = time(NULL);
-		char *timestamp = asctime(localtime(&ltime));
-		timestamp[strlen(timestamp) - 1] = 0;
-		fprintf(LogFile, "[%s] endOpenLoopMove Called\n", timestamp);
-        fflush(LogFile);
-	}
-#endif
-
     nErr = mSiTech.stopOpenLoopMove();
     if(nErr) {
-#ifdef PLUGIN_X2_DEBUG
-        if (LogFile) {
-            time_t ltime = time(NULL);
-            char *timestamp = asctime(localtime(&ltime));
-            timestamp[strlen(timestamp) - 1] = 0;
-            fprintf(LogFile, "[%s] endOpenLoopMove ERROR %d\n", timestamp, nErr);
-            fflush(LogFile);
-        }
-#endif
-        m_pLogger->out("endOpenLoopMove ERROR");
         return ERR_CMDFAILED;
     }
     return nErr;
@@ -205,16 +143,6 @@ int X2Mount::rateNameFromIndexOpenLoopMove(const int& nZeroBasedIndex, char* psz
     int nErr = SB_OK;
     nErr = mSiTech.getRateName(nZeroBasedIndex, pszOut, nOutMaxSize);
     if(nErr) {
-#ifdef PLUGIN_X2_DEBUG
-        if (LogFile) {
-            time_t ltime = time(NULL);
-            char *timestamp = asctime(localtime(&ltime));
-            timestamp[strlen(timestamp) - 1] = 0;
-            fprintf(LogFile, "[%s] rateNameFromIndexOpenLoopMove ERROR %d\n", timestamp, nErr);
-            fflush(LogFile);
-        }
-#endif
-        m_pLogger->out("rateNameFromIndexOpenLoopMove ERROR");
         return ERR_CMDFAILED;
     }
     return nErr;
@@ -411,27 +339,8 @@ int X2Mount::startSlewTo(const double& dRa, const double& dDec)
 
     X2MutexLocker ml(GetMutex());
 
-#ifdef PLUGIN_X2_DEBUG
-	if (LogFile) {
-		time_t ltime = time(NULL);
-		char *timestamp = asctime(localtime(&ltime));
-		timestamp[strlen(timestamp) - 1] = 0;
-		fprintf(LogFile, "[%s] startSlewTo Called %f %f\n", timestamp, dRa, dDec);
-        fflush(LogFile);
-	}
-#endif
     nErr = mSiTech.startSlewTo(dRa, dDec);
     if(nErr) {
-#ifdef PLUGIN_X2_DEBUG
-        if (LogFile) {
-            time_t ltime = time(NULL);
-            char *timestamp = asctime(localtime(&ltime));
-            timestamp[strlen(timestamp) - 1] = 0;
-            fprintf(LogFile, "[%s] startSlewTo nErr = %d \n", timestamp, nErr);
-            fflush(LogFile);
-        }
-#endif
-        m_pLogger->out("startSlewTo ERROR");
         return ERR_CMDFAILED;
     }
 
@@ -448,33 +357,11 @@ int X2Mount::isCompleteSlewTo(bool& bComplete) const
     X2MutexLocker ml(pMe->GetMutex());
 
     nErr = pMe->mSiTech.isSlewToComplete(bComplete);
-    if(nErr)
-        return ERR_CMDFAILED;
-
-#ifdef PLUGIN_X2_DEBUG
-    if (LogFile) {
-        time_t ltime = time(NULL);
-        char *timestamp = asctime(localtime(&ltime));
-        timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(LogFile, "[%s] isCompleteSlewTo nErr = %d \n", timestamp, nErr);
-        fflush(LogFile);
-    }
-#endif
-
 	return nErr;
 }
 
 int X2Mount::endSlewTo(void)
 {
-#ifdef PLUGIN_X2_DEBUG
-    if (LogFile) {
-        time_t ltime = time(NULL);
-        char *timestamp = asctime(localtime(&ltime));
-        timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(LogFile, "[%s] endSlewTo Called\n", timestamp);
-        fflush(LogFile);
-    }
-#endif
     return SB_OK;
 }
 
@@ -488,37 +375,12 @@ int X2Mount::syncMount(const double& ra, const double& dec)
 
     X2MutexLocker ml(GetMutex());
 
-#ifdef PLUGIN_X2_DEBUG
-    if (LogFile) {
-        time_t ltime = time(NULL);
-        char *timestamp = asctime(localtime(&ltime));
-        timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(LogFile, "[%s] syncMount Called : %f\t%f\n", timestamp, ra, dec);
-        fflush(LogFile);
-    }
-#endif
-
     nErr = mSiTech.syncTo(ra, dec);
-    if(nErr)
-        nErr = ERR_CMDFAILED;
-
-#ifdef PLUGIN_X2_DEBUG
-    if (LogFile) {
-        time_t ltime = time(NULL);
-        char *timestamp = asctime(localtime(&ltime));
-        timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(LogFile, "[%s] syncMount nErr = %d \n", timestamp, nErr);
-        fflush(LogFile);
-    }
-#endif
-
     return nErr;
 }
 
 bool X2Mount::isSynced(void)
 {
-    int nErr = PLUGIN_OK;
-
     if(!m_bLinked)
         return false;
 
@@ -543,28 +405,6 @@ int X2Mount::setTrackingRates(const bool& bTrackingOn, const bool& bIgnoreRates,
     dTrackDecArcSecPerHr = dDecRateArcSecPerSec * 3600;
 
     nErr = mSiTech.setTrackingRates(bTrackingOn, bIgnoreRates, dTrackRaArcSecPerHr, dTrackDecArcSecPerHr);
-#ifdef PLUGIN_X2_DEBUG
-    if (LogFile) {
-        time_t ltime = time(NULL);
-        char *timestamp = asctime(localtime(&ltime));
-        timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(LogFile, "[%s] setTrackingRates Called. Tracking On: %s , Ra rate : %f , Dec rate: %f\n", timestamp, bTrackingOn?"true":"false", dRaRateArcSecPerSec, dDecRateArcSecPerSec);
-        fflush(LogFile);
-    }
-#endif
-    if(nErr)
-        return ERR_CMDFAILED;
-
-#ifdef PLUGIN_X2_DEBUG
-    if (LogFile) {
-        time_t ltime = time(NULL);
-        char *timestamp = asctime(localtime(&ltime));
-        timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(LogFile, "[%s] setTrackingRates nErr = %d \n", timestamp, nErr);
-        fflush(LogFile);
-    }
-#endif
-
     return nErr;
 	
 }
@@ -582,29 +422,10 @@ int X2Mount::trackingRates(bool& bTrackingOn, double& dRaRateArcSecPerSec, doubl
 
     nErr = mSiTech.getTrackRates(bTrackingOn, dTrackRaArcSecPerHr, dTrackDecArcSecPerHr);
     if(nErr) {
-#ifdef PLUGIN_X2_DEBUG
-        if (LogFile) {
-            time_t ltime = time(NULL);
-            char *timestamp = asctime(localtime(&ltime));
-            timestamp[strlen(timestamp) - 1] = 0;
-            fprintf(LogFile, "[%s] trackingRates  mSiTech.getTrackRates nErr = %d \n", timestamp, nErr);
-            fflush(LogFile);
-        }
-#endif
         return ERR_CMDFAILED;
     }
     dRaRateArcSecPerSec = dTrackRaArcSecPerHr / 3600;
     dDecRateArcSecPerSec = dTrackDecArcSecPerHr / 3600;
-
-#ifdef PLUGIN_X2_DEBUG
-    if (LogFile) {
-        time_t ltime = time(NULL);
-        char *timestamp = asctime(localtime(&ltime));
-        timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(LogFile, "[%s] trackingRates Called. Tracking On: %d , Ra rate : %f , Dec rate: %f\n", timestamp, bTrackingOn, dRaRateArcSecPerSec, dDecRateArcSecPerSec);
-        fflush(LogFile);
-    }
-#endif
 
 	return nErr;
 }
@@ -617,30 +438,7 @@ int X2Mount::siderealTrackingOn()
 
     X2MutexLocker ml(GetMutex());
 
-#ifdef PLUGIN_X2_DEBUG
-    if (LogFile) {
-        time_t ltime = time(NULL);
-        char *timestamp = asctime(localtime(&ltime));
-        timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(LogFile, "[%s] siderealTrackingOn Called \n", timestamp);
-        fflush(LogFile);
-    }
-#endif
-
     nErr = setTrackingRates( true, true, 0.0, 0.0);
-    if(nErr)
-        return ERR_CMDFAILED;
-
-#ifdef PLUGIN_X2_DEBUG
-    if (LogFile) {
-        time_t ltime = time(NULL);
-        char *timestamp = asctime(localtime(&ltime));
-        timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(LogFile, "[%s] siderealTrackingOn nErr = %d \n", timestamp, nErr);
-        fflush(LogFile);
-    }
-#endif
-
     return nErr;
 }
 
@@ -652,29 +450,7 @@ int X2Mount::trackingOff()
 
     X2MutexLocker ml(GetMutex());
 
-#ifdef PLUGIN_X2_DEBUG
-    if (LogFile) {
-        time_t ltime = time(NULL);
-        char *timestamp = asctime(localtime(&ltime));
-        timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(LogFile, "[%s] trackingOff Called \n", timestamp);
-        fflush(LogFile);
-    }
-#endif
     nErr = setTrackingRates( false, true, 0.0, 0.0);
-    if(nErr)
-        nErr = ERR_CMDFAILED;
-
-#ifdef PLUGIN_X2_DEBUG
-    if (LogFile) {
-        time_t ltime = time(NULL);
-        char *timestamp = asctime(localtime(&ltime));
-        timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(LogFile, "[%s] trackingOff nErr = %d \n", timestamp, nErr);
-        fflush(LogFile);
-    }
-#endif
-
     return nErr;
 }
 
@@ -691,18 +467,6 @@ bool X2Mount::needsRefactionAdjustments(void)
 
     // check if SiTech refraction adjustment is on.
     nErr = mSiTech.getRefractionCorrEnabled(bEnabled);
-
-#ifdef PLUGIN_X2_DEBUG
-    if (LogFile) {
-        time_t ltime = time(NULL);
-        char *timestamp = asctime(localtime(&ltime));
-        timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(LogFile, "[%s] getRefractionCorrEnabled nErr = %d \n", timestamp, nErr);
-        fprintf(LogFile, "[%s] getRefractionCorrEnabled bEnabled = %s\n", timestamp, bEnabled?"true":"false");
-        fflush(LogFile);
-    }
-#endif
-
     return !bEnabled; // if enabled in SiTech, don't ask TSX to do it.
 }
 
@@ -721,15 +485,6 @@ bool X2Mount::isParked(void)
 
     nErr = mSiTech.getAtPark(bIsPArked);
     if(nErr) {
-#ifdef PLUGIN_X2_DEBUG
-        if (LogFile) {
-            time_t ltime = time(NULL);
-            char *timestamp = asctime(localtime(&ltime));
-            timestamp[strlen(timestamp) - 1] = 0;
-            fprintf(LogFile, "[%s] isParked mSiTech.getAtPark nErr = %d \n", timestamp, nErr);
-            fflush(LogFile);
-        }
-#endif
         return false;
     }
     if(!bIsPArked) // not parked
@@ -738,15 +493,6 @@ bool X2Mount::isParked(void)
     // get tracking state.
     nErr = mSiTech.getTrackRates(bTrackingOn, dTrackRaArcSecPerHr, dTrackDecArcSecPerHr);
     if(nErr) {
-#ifdef PLUGIN_X2_DEBUG
-        if (LogFile) {
-            time_t ltime = time(NULL);
-            char *timestamp = asctime(localtime(&ltime));
-            timestamp[strlen(timestamp) - 1] = 0;
-            fprintf(LogFile, "[%s] isParked mSiTech.getTrackRates nErr = %d \n", timestamp, nErr);
-            fflush(LogFile);
-        }
-#endif
         return false;
     }
     // if AtPark and tracking is off, then we're parked, if not then we're unparked.
@@ -769,42 +515,11 @@ int X2Mount::startPark(const double& dAz, const double& dAlt)
 
 	nErr = m_pTheSkyXForMounts->HzToEq(dAz, dAlt, dRa, dDec);
     if (nErr) {
-#ifdef PLUGIN_X2_DEBUG
-        if (LogFile) {
-            time_t ltime = time(NULL);
-            char *timestamp = asctime(localtime(&ltime));
-            timestamp[strlen(timestamp) - 1] = 0;
-            fprintf(LogFile, "[%s] startPark  m_pTheSkyXForMounts->HzToEq nErr = %d \n", timestamp, nErr);
-            fflush(LogFile);
-        }
-#endif
         return nErr;
     }
 
-#ifdef PLUGIN_X2_DEBUG
-	if (LogFile) {
-		time_t ltime = time(NULL);
-		char *timestamp = asctime(localtime(&ltime));
-		timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(LogFile, "[%s] startPark Called. Alt: %f , Az: %f [ Ra: %f , Dec: %f]\n", timestamp, dAz, dAlt, dRa, dDec);
-        fflush(LogFile);
-	}
-#endif
     // goto park
     nErr = mSiTech.gotoPark(dRa, dDec);
-    if(nErr)
-        nErr = ERR_CMDFAILED;
-
-#ifdef PLUGIN_X2_DEBUG
-    if (LogFile) {
-        time_t ltime = time(NULL);
-        char *timestamp = asctime(localtime(&ltime));
-        timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(LogFile, "[%s] startPark  mSiTech.gotoPark nErr = %d \n", timestamp, nErr);
-        fflush(LogFile);
-    }
-#endif
-
 	return nErr;
 }
 
@@ -820,29 +535,7 @@ int X2Mount::isCompletePark(bool& bComplete) const
 
     X2MutexLocker ml(pMe ->GetMutex());
 
-#ifdef PLUGIN_X2_DEBUG
-	if (LogFile) {
-		time_t ltime = time(NULL);
-		char *timestamp = asctime(localtime(&ltime));
-		timestamp[strlen(timestamp) - 1] = 0;
-		fprintf(LogFile, "[%s] isCompletePark Called\n", timestamp);
-        fflush(LogFile);
-	}
-#endif
     nErr = pMe->mSiTech.getAtPark(bComplete);
-    if(nErr)
-        nErr = ERR_CMDFAILED;
-
-#ifdef PLUGIN_X2_DEBUG
-    if (LogFile) {
-        time_t ltime = time(NULL);
-        char *timestamp = asctime(localtime(&ltime));
-        timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(LogFile, "[%s] isCompletePark  mSiTech.getAtPark nErr = %d \n", timestamp, nErr);
-        fflush(LogFile);
-    }
-#endif
-
 	return nErr;
 }
 
@@ -862,15 +555,6 @@ int X2Mount::startUnpark(void)
 
     nErr = mSiTech.unPark();
     if(nErr) {
-#ifdef PLUGIN_X2_DEBUG
-        if (LogFile) {
-            time_t ltime = time(NULL);
-            char *timestamp = asctime(localtime(&ltime));
-            timestamp[strlen(timestamp) - 1] = 0;
-            fprintf(LogFile, "[%s] startUnpark : mSiTech.unPark() failled !\n", timestamp);
-            fflush(LogFile);
-        }
-#endif
         nErr = ERR_CMDFAILED;
     }
     m_bParked = false;
@@ -898,15 +582,6 @@ int X2Mount::isCompleteUnpark(bool& bComplete) const
 
     nErr = pMe->mSiTech.getAtPark(bIsParked);
     if(nErr) {
-#ifdef PLUGIN_X2_DEBUG
-        if (LogFile) {
-            time_t ltime = time(NULL);
-            char *timestamp = asctime(localtime(&ltime));
-            timestamp[strlen(timestamp) - 1] = 0;
-            fprintf(LogFile, "[%s] isCompleteUnpark  mSiTech.getAtPark nErr = %d \n", timestamp, nErr);
-            fflush(LogFile);
-        }
-#endif
         nErr = ERR_CMDFAILED;
     }
     if(!bIsParked) { // no longer parked.
@@ -920,15 +595,6 @@ int X2Mount::isCompleteUnpark(bool& bComplete) const
     nErr = pMe->mSiTech.getTrackRates(bTrackingOn, dTrackRaArcSecPerHr, dTrackDecArcSecPerHr);
     if(nErr)
         nErr = ERR_CMDFAILED;
-#ifdef PLUGIN_X2_DEBUG
-    if (LogFile) {
-        time_t ltime = time(NULL);
-        char *timestamp = asctime(localtime(&ltime));
-        timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(LogFile, "[%s] isCompleteUnpark  mSiTech.getTrackRates nErr = %d \n", timestamp, nErr);
-        fflush(LogFile);
-    }
-#endif
 
     if(bTrackingOn) {
         bComplete = true;
@@ -963,16 +629,6 @@ int X2Mount::beyondThePole(bool& bYes) {
 
 
 double X2Mount::flipHourAngle() {
-#ifdef PLUGIN_X2_DEBUG
-	if (LogFile) {
-		time_t ltime = time(NULL);
-		char *timestamp = asctime(localtime(&ltime));
-		timestamp[strlen(timestamp) - 1] = 0;
-		// fprintf(LogFile, "[%s] flipHourAngle called\n", timestamp);
-        fflush(LogFile);
-	}
-#endif
-
 	return 0.0;
 }
 
@@ -987,17 +643,6 @@ int X2Mount::gemLimits(double& dHoursEast, double& dHoursWest)
 
     nErr = mSiTech.getLimits(dHoursEast, dHoursWest);
 
-#ifdef PLUGIN_X2_DEBUG
-    if (LogFile) {
-        time_t ltime = time(NULL);
-        char *timestamp = asctime(localtime(&ltime));
-        timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(LogFile, "[%s] gemLimits mSiTech.getLimits nErr = %d\n", timestamp, nErr);
-        fprintf(LogFile, "[%s] gemLimits dHoursEast = %f\n", timestamp, dHoursEast);
-        fprintf(LogFile, "[%s] gemLimits dHoursWest = %f\n", timestamp, dHoursWest);
-        fflush(LogFile);
-    }
-#endif
     // temp debugging.
 	dHoursEast = 0.0;
 	dHoursWest = 0.0;
