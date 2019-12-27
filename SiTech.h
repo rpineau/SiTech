@@ -81,7 +81,7 @@ public:
     int syncTo(double dRa, double dDec);
 
     int setTrackingRates(bool bTrackingOn, bool bIgnoreRates, double dRaRateArcSecPerSec, double dDecRateArcSecPerSec);
-    int getTrackRates(bool &bTrackingOn, double &dTrackRaArcSecPerHr, double &dTrackDecArcSecPerHr);
+    int getTrackRates(bool &bTrackingOn, double &dRaRateArcSecPerSec, double &dDecRateArcSecPerSec);
 
     int startSlewTo(double dRa, double dDec);
     int isSlewToComplete(bool &bComplete);
@@ -100,6 +100,7 @@ public:
     int getLimits(double &dHoursEast, double &dHoursWest);
 
     int Abort();
+    void isSynced(bool &bSynced);
 
 private:
 
@@ -118,6 +119,7 @@ private:
     char    m_szDate[SERIAL_BUFFER_SIZE];
     int     m_nSiteNumber;
 
+    bool    m_bIsSynced;
 	double  m_dGotoRATarget;						  // Current Target RA;
 	double  m_dGotoDECTarget;                      // Current Goto Target Dec;
 
@@ -134,11 +136,6 @@ private:
 
 
     int     slewTargetRADec();
-
-    int     setCustomTRateOffsetRA(double dRa);
-    int     setCustomTRateOffsetDec(double dDec);
-    int     getCustomTRateOffsetRA(double &dTrackRaArcSecPerHr);
-    int     getCustomTRateOffsetDec(double &dTrackDecArcSecPerHr);
 
     int     getSoftLimitEastAngle(double &dAngle);
     int     getSoftLimitWestAngle(double &dAngle);
@@ -172,7 +169,17 @@ private:
 
     CStopWatch      timer;
 
+    double  m_dRaAzRate;
+    double  m_dDecAltRate;
+    bool    m_bTracking;
+    
+    
+    std::string&    trim(std::string &str, const std::string &filter );
+    std::string&    ltrim(std::string &str, const std::string &filter);
+    std::string&    rtrim(std::string &str, const std::string &filter);
+    std::string     findField(std::vector<std::string> &svFields, const std::string& token);
 
+    
 #ifdef PLUGIN_DEBUG
     std::string m_sLogfilePath;
 	// timestamp for logs

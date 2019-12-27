@@ -383,9 +383,10 @@ bool X2Mount::isSynced(void)
 {
     if(!m_bLinked)
         return false;
-
+    
     X2MutexLocker ml(GetMutex());
-    m_bSynced = false;
+
+    mSiTech.isSynced(m_bSynced);
 
     return m_bSynced;
 }
@@ -398,7 +399,6 @@ int X2Mount::setTrackingRates(const bool& bTrackingOn, const bool& bIgnoreRates,
         return ERR_NOLINK;
 
     X2MutexLocker ml(GetMutex());
-
     nErr = mSiTech.setTrackingRates(bTrackingOn, bIgnoreRates, dRaRateArcSecPerSec, dDecRateArcSecPerSec);
     return nErr;
 	
@@ -407,20 +407,15 @@ int X2Mount::setTrackingRates(const bool& bTrackingOn, const bool& bIgnoreRates,
 int X2Mount::trackingRates(bool& bTrackingOn, double& dRaRateArcSecPerSec, double& dDecRateArcSecPerSec)
 {
     int nErr = SB_OK;
-    double dTrackRaArcSecPerHr;
-    double dTrackDecArcSecPerHr;
-
     if(!m_bLinked)
         return ERR_NOLINK;
 
     X2MutexLocker ml(GetMutex());
 
-    nErr = mSiTech.getTrackRates(bTrackingOn, dTrackRaArcSecPerHr, dTrackDecArcSecPerHr);
+    nErr = mSiTech.getTrackRates(bTrackingOn, dRaRateArcSecPerSec, dDecRateArcSecPerSec);
     if(nErr) {
         return ERR_CMDFAILED;
     }
-    dRaRateArcSecPerSec = dTrackRaArcSecPerHr / 3600;
-    dDecRateArcSecPerSec = dTrackDecArcSecPerHr / 3600;
 
 	return nErr;
 }

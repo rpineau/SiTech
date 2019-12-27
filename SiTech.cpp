@@ -16,6 +16,10 @@ SiTech::SiTech()
     m_nRaAzTickPerRev = 1;
     m_nDecAltTickPerRev = 1;
     
+    m_dRaAzRate = -15.0410681;
+    m_dDecAltRate = 0;
+    m_bTracking = false;
+    
 #ifdef PLUGIN_DEBUG
 #if defined(SB_WIN_BUILD)
     m_sLogfilePath = getenv("HOMEDRIVE");
@@ -80,7 +84,8 @@ int SiTech::Connect(char *pszPort)
         return ERR_COMMNOLINK;
     timer.Reset();
     m_bLimitCached = false;
-
+    m_pSerx->purgeTxRx();
+    
     nErr = getFirmwareVersion(szFirmware, SERIAL_BUFFER_SIZE);
     if(nErr) {
         m_bIsConnected = false;
@@ -218,7 +223,9 @@ int SiTech::readResponse(char *szRespBuffer, int nBufferLen, int nTimeout )
     unsigned long ulBytesRead = 0;
     unsigned long ulTotalBytesRead = 0;
     char *pszBufPtr;
-
+    std::string sTmp;
+    std::string sResp;
+    
     memset(szRespBuffer, 0, (size_t) nBufferLen);
     pszBufPtr = szRespBuffer;
 
@@ -247,11 +254,15 @@ int SiTech::readResponse(char *szRespBuffer, int nBufferLen, int nTimeout )
             break;
         }
         ulTotalBytesRead += ulBytesRead;
-    } while (*pszBufPtr++ != 0x0d && ulTotalBytesRead < nBufferLen );
+    } while (*pszBufPtr++ != 0x0a && ulTotalBytesRead < nBufferLen );
 
-    if(ulTotalBytesRead)
-        *(pszBufPtr-1) = 0; //remove the \r
-
+    if(ulTotalBytesRead) {
+        //cleanup the string
+        sTmp.assign(szRespBuffer);
+        sResp = trim(sTmp," \n\r");
+        strncpy(szRespBuffer, sResp.c_str(), SERIAL_BUFFER_SIZE);
+    }
+        
     #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
                 ltime = time(NULL);
                 timestamp = asctime(localtime(&ltime));
@@ -296,7 +307,7 @@ int SiTech::getRaAndDec(double &dRa, double &dDec)
     ltime = time(NULL);
     timestamp = asctime(localtime(&ltime));
     timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] [SiTech::getRaAndDec]\n", timestamp);
+    fprintf(Logfile, "[%s] [SiTech::getRaAndDec] ===========================\n", timestamp);
     fflush(Logfile);
 #endif
 
@@ -320,7 +331,7 @@ int SiTech::getRaAndDec(double &dRa, double &dDec)
             timestamp = asctime(localtime(&ltime));
             timestamp[strlen(timestamp) - 1] = 0;
             fprintf(Logfile, "[%s] [SiTech::getRaAndDec] Ra/Az nTmp = %d\n", timestamp, nTmp);
-            fprintf(Logfile, "[%s] [SiTech::getRaAndDec] Ra/Az dRa = %3.2f\n", timestamp, dRa);
+            fprintf(Logfile, "[%s] [SiTech::getRaAndDec] Ra/Az dRa = %f\n", timestamp, dRa);
             fflush(Logfile);
         #endif
     }
@@ -348,7 +359,7 @@ int SiTech::getRaAndDec(double &dRa, double &dDec)
             timestamp = asctime(localtime(&ltime));
             timestamp[strlen(timestamp) - 1] = 0;
             fprintf(Logfile, "[%s] [SiTech::getRaAndDec] Ra/Az nTmp = %d\n", timestamp, nTmp);
-            fprintf(Logfile, "[%s] [SiTech::getRaAndDec] Ra/Az dDEc = %3.2f\n", timestamp, dDec);
+            fprintf(Logfile, "[%s] [SiTech::getRaAndDec] Ra/Az dDEc = %f\n", timestamp, dDec);
             fflush(Logfile);
         #endif
     }
@@ -361,6 +372,7 @@ int SiTech::getRaAndDec(double &dRa, double &dDec)
         timestamp[strlen(timestamp) - 1] = 0;
         fprintf(Logfile, "[%s] [SiTech::getRaAndDec] Ra : %f\n", timestamp, dRa);
         fprintf(Logfile, "[%s] [SiTech::getRaAndDec] Dec : %f\n", timestamp, dDec);
+        fprintf(Logfile, "[%s] [SiTech::getRaAndDec] ---------------------------\n", timestamp);
         fflush(Logfile);
     #endif
 
@@ -417,16 +429,29 @@ int SiTech::syncTo(double dRa, double dDec)
 
     //now enable tracking at sidereal rate
     setTrackingRates(true, true, 0, 0);
+    m_bIsSynced = true;
     
     return nErr;
 
+}
+
+void SiTech::isSynced(bool &bSynced)
+{
+    bSynced = m_bIsSynced;
+    
+    #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+            ltime = time(NULL);
+            timestamp = asctime(localtime(&ltime));
+            timestamp[strlen(timestamp) - 1] = 0;
+            fprintf(Logfile, "[%s] [SiTech::isSynced] m_bIsSynced = %s\n", timestamp, m_bIsSynced?"True":"False");
+            fflush(Logfile);
+    #endif
 }
 
 #pragma mark - tracking rates
 int SiTech::setTrackingRates(bool bTrackingOn, bool bIgnoreRates, double dRaRateArcSecPerSec, double dDecRateArcSecPerSec)
 {
     int nErr = PLUGIN_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
     std::string sCmd;
     int nTarget;
     double dRaSpeed;
@@ -442,6 +467,10 @@ int SiTech::setTrackingRates(bool bTrackingOn, bool bIgnoreRates, double dRaRate
 #endif
         nErr = sendCommand(std::string("YN\r"), nullptr, SERIAL_BUFFER_SIZE);
         nErr |= sendCommand(std::string("XN\r"), nullptr, SERIAL_BUFFER_SIZE);
+        
+        m_dRaAzRate = -15.0410681;
+        m_dDecAltRate = 0;
+        m_bTracking = false;
     }
     else if(bTrackingOn ) {
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
@@ -470,7 +499,10 @@ int SiTech::setTrackingRates(bool bTrackingOn, bool bIgnoreRates, double dRaRate
         sCmd += std::to_string(nMotorSpeed);
         sCmd += "\r";
         nErr = sendCommand(sCmd, nullptr, SERIAL_BUFFER_SIZE);
-
+        if(nErr)
+            return nErr;
+        
+        m_dRaAzRate = dRaRateArcSecPerSec;
         // repeat for Dec except without sidereal.
         nMotorSpeed = arcsecPerSec2MotorSpeed(dDecRateArcSecPerSec, m_nRaAzTickPerRev);
         // Target should be set depending on tracking sign
@@ -486,89 +518,43 @@ int SiTech::setTrackingRates(bool bTrackingOn, bool bIgnoreRates, double dRaRate
         sCmd += std::to_string(nMotorSpeed);
         sCmd += "\r";
         nErr = sendCommand(sCmd, nullptr, SERIAL_BUFFER_SIZE);
+        if(nErr)
+            return nErr;
+
+        m_dDecAltRate = dDecRateArcSecPerSec;
+        m_bTracking = true;
     }
 
-    return nErr;
-}
-
-int SiTech::getTrackRates(bool &bTrackingOn, double &dTrackRaArcSecPerHr, double &dTrackDecArcSecPerHr)
-{
-    int nErr = PLUGIN_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
-
-    // nErr = sendCommand("!RGtr;", szResp, SERIAL_BUFFER_SIZE);
-    bTrackingOn = true;
-    if(strncmp(szResp, "Drift", SERIAL_BUFFER_SIZE)==0) {
-        bTrackingOn = false;
-    }
-    nErr = getCustomTRateOffsetRA(dTrackRaArcSecPerHr);
-    nErr |= getCustomTRateOffsetDec(dTrackDecArcSecPerHr);
-
-    return nErr;
-}
-
-int SiTech::setCustomTRateOffsetRA(double dRa)
-{
-    int nErr = PLUGIN_OK;
-    char szCmd[SERIAL_BUFFER_SIZE];
-    char szResp[SERIAL_BUFFER_SIZE];
-
-    snprintf(szCmd, SERIAL_BUFFER_SIZE, "!RSor%.2f;", dRa);
-    // nErr = sendCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
-    if(nErr) {
-#if defined PLUGIN_DEBUG
+    #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
         ltime = time(NULL);
         timestamp = asctime(localtime(&ltime));
         timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(Logfile, "[%s] [SiTech::setCustomTRateOffsetRA] Error setting Ra tracking rate to %f\n", timestamp, dRa);
+        fprintf(Logfile, "[%s] [SiTech::setTrackingRates] m_bTracking = %s\n", timestamp, m_bTracking?"True":"False");
+        fprintf(Logfile, "[%s] [SiTech::setTrackingRates] m_dRaAzRate = %f\n", timestamp, m_dRaAzRate);
+        fprintf(Logfile, "[%s] [SiTech::setTrackingRates] m_dDecAltRate = %f\n", timestamp, m_dDecAltRate);
         fflush(Logfile);
+    #endif
+
+    return nErr;
+}
+
+int SiTech::getTrackRates(bool &bTrackingOn, double &dRaRateArcSecPerSec, double &dDecRateArcSecPerSec)
+{
+    int nErr = PLUGIN_OK;
+
+    dRaRateArcSecPerSec = m_dRaAzRate;
+    dDecRateArcSecPerSec = m_dDecAltRate;
+    bTrackingOn = m_bTracking;
+
+#if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+    ltime = time(NULL);
+    timestamp = asctime(localtime(&ltime));
+    timestamp[strlen(timestamp) - 1] = 0;
+    fprintf(Logfile, "[%s] [SiTech::getTrackRates] bTrackingOn = %s\n", timestamp, bTrackingOn?"True":"False");
+    fprintf(Logfile, "[%s] [SiTech::getTrackRates] dRaRateArcSecPerSec = %f\n", timestamp, dRaRateArcSecPerSec);
+    fprintf(Logfile, "[%s] [SiTech::getTrackRates] dDecRateArcSecPerSec = %f\n", timestamp, dDecRateArcSecPerSec);
+    fflush(Logfile);
 #endif
-    }
-    return nErr;
-}
-
-int SiTech::setCustomTRateOffsetDec(double dDec)
-{
-    int nErr = PLUGIN_OK;
-    char szCmd[SERIAL_BUFFER_SIZE];
-    char szResp[SERIAL_BUFFER_SIZE];
-
-    snprintf(szCmd, SERIAL_BUFFER_SIZE, "!RSod%.2f;", dDec);
-    // nErr = sendCommand(szCmd, szResp, SERIAL_BUFFER_SIZE);
-    if(nErr) {
-#if defined PLUGIN_DEBUG
-        ltime = time(NULL);
-        timestamp = asctime(localtime(&ltime));
-        timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(Logfile, "[%s] [SiTech::setCustomTRateOffsetDec] Error setting Dec tracking rate to %f\n", timestamp, dDec);
-        fflush(Logfile);
-#endif
-    }
-    return nErr;
-}
-
-int SiTech::getCustomTRateOffsetRA(double &dTrackRaArcSecPerHr)
-{
-    int nErr = PLUGIN_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
-
-    // nErr = sendCommand("!RGor;", szResp, SERIAL_BUFFER_SIZE);
-    if(nErr)
-        return nErr;
-    dTrackRaArcSecPerHr = atof(szResp);
-
-    return nErr;
-}
-
-int SiTech::getCustomTRateOffsetDec(double &dTrackDecArcSecPerHr)
-{
-    int nErr = PLUGIN_OK;
-    char szResp[SERIAL_BUFFER_SIZE];
-
-    // nErr = sendCommand("!RGod;", szResp, SERIAL_BUFFER_SIZE);
-    if(nErr)
-        return nErr;
-    dTrackDecArcSecPerHr = atof(szResp);
 
     return nErr;
 }
@@ -856,8 +842,8 @@ int SiTech::Abort()
 {
     int nErr = PLUGIN_OK;
 
-    nErr = sendCommand(std::string("XN\r"), nullptr, SERIAL_BUFFER_SIZE);
-    nErr |= sendCommand(std::string("YN\r"), nullptr, SERIAL_BUFFER_SIZE);
+    nErr = sendCommand(std::string("XG\r"), nullptr, SERIAL_BUFFER_SIZE);
+    nErr |= sendCommand(std::string("YG\r"), nullptr, SERIAL_BUFFER_SIZE);
 
     return nErr;
 }
@@ -961,5 +947,32 @@ int SiTech::parseFields(const char *pszIn, std::vector<std::string> &svFields, c
         nErr = ERR_PARSE;
     }
     return nErr;
+}
+
+std::string& SiTech::trim(std::string &str, const std::string& filter )
+{
+    return ltrim(rtrim(str, filter), filter);
+}
+
+std::string& SiTech::ltrim(std::string& str, const std::string& filter)
+{
+    str.erase(0, str.find_first_not_of(filter));
+    return str;
+}
+
+std::string& SiTech::rtrim(std::string& str, const std::string& filter)
+{
+    str.erase(str.find_last_not_of(filter) + 1);
+    return str;
+}
+
+std::string SiTech::findField(std::vector<std::string> &svFields, const std::string& token)
+{
+    for(int i=0; i<svFields.size(); i++){
+        if(svFields[i].find(token)!= -1) {
+            return svFields[i];
+        }
+    }
+    return std::string();
 }
 
