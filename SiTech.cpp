@@ -16,9 +16,11 @@ SiTech::SiTech()
     m_nRaAzTickPerRev = 1;
     m_nDecAltTickPerRev = 1;
     
-    m_dRaAzRate = -15.0410681;
+    m_dRaAzRate = SIDEREAL_TRACKING_SPEED;
     m_dDecAltRate = 0;
     m_bTracking = false;
+    
+    m_dServoFreq = SERVO_FREQ;
     
 #ifdef PLUGIN_DEBUG
 #if defined(SB_WIN_BUILD)
@@ -92,6 +94,7 @@ int SiTech::Connect(char *pszPort)
     }
     nErr = getRaAzTickPerRev(m_nRaAzTickPerRev);
     nErr = getDecAltTickPerRev(m_nDecAltTickPerRev);
+    m_bNorthHemisphere = (m_pTSX->latitude() > 0);
     
     return nErr;
 }
@@ -297,12 +300,12 @@ int SiTech::getFirmwareVersion(char *pszVersion, unsigned int nStrMaxLen)
 
 #pragma mark - Mount Coordinates
 
-int SiTech::getRaAndDec(double &dRa, double &dDec)
+int SiTech::getHaAndDec(double &dHa, double &dDec)
 {
     int nErr = PLUGIN_OK;
     char szResp[SERIAL_BUFFER_SIZE];
     int nTmp = 0;
-
+    
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
     ltime = time(NULL);
     timestamp = asctime(localtime(&ltime));
@@ -324,14 +327,15 @@ int SiTech::getRaAndDec(double &dRa, double &dDec)
     fflush(Logfile);
 #endif
     if(szResp[0] == 'Y') {
-        nTmp = atoi(&szResp[1]);
-        dRa = stepToDeg(nTmp, m_nRaAzTickPerRev);
+        m_nRaAzPos = atoi(&szResp[1]);
+        dHa = stepToHa(m_nRaAzPos, m_nRaAzTickPerRev);
+
         #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
             ltime = time(NULL);
             timestamp = asctime(localtime(&ltime));
             timestamp[strlen(timestamp) - 1] = 0;
-            fprintf(Logfile, "[%s] [SiTech::getRaAndDec] Ra/Az nTmp = %d\n", timestamp, nTmp);
-            fprintf(Logfile, "[%s] [SiTech::getRaAndDec] Ra/Az dRa = %f\n", timestamp, dRa);
+            fprintf(Logfile, "[%s] [SiTech::getRaAndDec] Ra/Az m_nRaAzPos = %d\n", timestamp, m_nRaAzPos);
+            fprintf(Logfile, "[%s] [SiTech::getRaAndDec] Ra/Az dHa = %f\n", timestamp, dHa);
             fflush(Logfile);
         #endif
     }
@@ -352,13 +356,13 @@ int SiTech::getRaAndDec(double &dRa, double &dDec)
         fflush(Logfile);
     #endif
     if(szResp[0] == 'X') {
-        nTmp = atoi(&szResp[1]);
-        dDec = stepToDeg(nTmp, m_nDecAltTickPerRev);
+        m_nDecAltPos = atoi(&szResp[1]);
+        dDec = stepToDeg(m_nDecAltPos, m_nDecAltTickPerRev);
         #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
             ltime = time(NULL);
             timestamp = asctime(localtime(&ltime));
             timestamp[strlen(timestamp) - 1] = 0;
-            fprintf(Logfile, "[%s] [SiTech::getRaAndDec] Ra/Az nTmp = %d\n", timestamp, nTmp);
+            fprintf(Logfile, "[%s] [SiTech::getRaAndDec] Ra/Az m_nDecAltPos = %d\n", timestamp, m_nDecAltPos);
             fprintf(Logfile, "[%s] [SiTech::getRaAndDec] Ra/Az dDEc = %f\n", timestamp, dDec);
             fflush(Logfile);
         #endif
@@ -370,7 +374,7 @@ int SiTech::getRaAndDec(double &dRa, double &dDec)
         ltime = time(NULL);
         timestamp = asctime(localtime(&ltime));
         timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(Logfile, "[%s] [SiTech::getRaAndDec] Ra : %f\n", timestamp, dRa);
+        fprintf(Logfile, "[%s] [SiTech::getRaAndDec] Ha  : %f\n", timestamp, dHa);
         fprintf(Logfile, "[%s] [SiTech::getRaAndDec] Dec : %f\n", timestamp, dDec);
         fprintf(Logfile, "[%s] [SiTech::getRaAndDec] ---------------------------\n", timestamp);
         fflush(Logfile);
@@ -385,22 +389,27 @@ int SiTech::syncTo(double dRa, double dDec)
 {
     int nErr = PLUGIN_OK;
     int nStepPos;
+    double dHa;
     std::string sCmd;
-    
+
+    dHa = m_pTSX->hourAngle(dRa);
+
 #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
     ltime = time(NULL);
     timestamp = asctime(localtime(&ltime));
     timestamp[strlen(timestamp) - 1] = 0;
-    fprintf(Logfile, "[%s] [SiTech::syncTo] Ra : %f\n", timestamp, dRa);
+    fprintf(Logfile, "[%s] [SiTech::syncTo] Ra  : %f\n", timestamp, dRa);
+    fprintf(Logfile, "[%s] [SiTech::syncTo] dHa : %f\n", timestamp, dHa);
     fprintf(Logfile, "[%s] [SiTech::syncTo] Dec : %f\n", timestamp, dDec);
     fflush(Logfile);
 #endif
-    nStepPos = degToSteps(dRa, m_nRaAzTickPerRev);
+    
+    nStepPos = haToSteps(dHa, m_nRaAzTickPerRev);
     #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
         ltime = time(NULL);
         timestamp = asctime(localtime(&ltime));
         timestamp[strlen(timestamp) - 1] = 0;
-        fprintf(Logfile, "[%s] [SiTech::syncTo] Ra nStepPos : %d\n", timestamp, nStepPos);
+        fprintf(Logfile, "[%s] [SiTech::syncTo] dHa nStepPos : %d\n", timestamp, nStepPos);
         fflush(Logfile);
     #endif
 
@@ -468,7 +477,7 @@ int SiTech::setTrackingRates(bool bTrackingOn, bool bIgnoreRates, double dRaRate
         nErr = sendCommand(std::string("YN\r"), nullptr, SERIAL_BUFFER_SIZE);
         nErr |= sendCommand(std::string("XN\r"), nullptr, SERIAL_BUFFER_SIZE);
         
-        m_dRaAzRate = -15.0410681;
+        m_dRaAzRate = 15.0410681;
         m_dDecAltRate = 0;
         m_bTracking = false;
     }
@@ -481,16 +490,24 @@ int SiTech::setTrackingRates(bool bTrackingOn, bool bIgnoreRates, double dRaRate
         fflush(Logfile);
 #endif
         // Sidereal = 15.0410681 arcsecPerSec
-        // dRaSpeed = dRaRateArcSecPerSec + Sidereal
-        dRaSpeed = dRaRateArcSecPerSec + 15.0410681;
+        // dRaSpeed = Sidereal - dRaRateArcSecPerSec
+        dRaSpeed = SIDEREAL_TRACKING_SPEED - dRaRateArcSecPerSec;
         nMotorSpeed = arcsecPerSec2MotorSpeed(dRaSpeed, m_nRaAzTickPerRev);
+        #if defined PLUGIN_DEBUG && PLUGIN_DEBUG >= 2
+                ltime = time(NULL);
+                timestamp = asctime(localtime(&ltime));
+                timestamp[strlen(timestamp) - 1] = 0;
+                fprintf(Logfile, "[%s] [SiTech::setTrackingRates] nMotorSpeed Ra : %d\n", timestamp, nMotorSpeed);
+                fflush(Logfile);
+        #endif
+
         // Target should be set depending on tracking sign
-        if(dRaRateArcSecPerSec <0) {
-            nTarget = -FarFarAway;
-            nMotorSpeed = abs(nMotorSpeed);
+        if(m_bNorthHemisphere) {
+            nTarget = FarFarAway;
         }
         else {
-            nTarget = FarFarAway;
+            nTarget = -FarFarAway;
+            nMotorSpeed = abs(nMotorSpeed);
         }
         
         sCmd = "Y";
@@ -501,17 +518,12 @@ int SiTech::setTrackingRates(bool bTrackingOn, bool bIgnoreRates, double dRaRate
         nErr = sendCommand(sCmd, nullptr, SERIAL_BUFFER_SIZE);
         if(nErr)
             return nErr;
-        
+
         m_dRaAzRate = dRaRateArcSecPerSec;
-        // repeat for Dec except without sidereal.
+        
+        // Dec
         nMotorSpeed = arcsecPerSec2MotorSpeed(dDecRateArcSecPerSec, m_nRaAzTickPerRev);
-        // Target should be set depending on tracking sign
-        if(dDecRateArcSecPerSec < 0) {
-           nTarget = -FarFarAway;
-           nMotorSpeed = abs(nMotorSpeed);
-       }
-        else
-            nTarget = FarFarAway;
+        nTarget = FarFarAway;
         sCmd = "X";
         sCmd += std::to_string(nTarget);
         sCmd += "S";
@@ -522,6 +534,7 @@ int SiTech::setTrackingRates(bool bTrackingOn, bool bIgnoreRates, double dRaRate
             return nErr;
 
         m_dDecAltRate = dDecRateArcSecPerSec;
+
         m_bTracking = true;
     }
 
@@ -579,8 +592,8 @@ int SiTech::getLimits(double &dHoursEast, double &dHoursWest)
     if(nErr)
         return nErr;
 
-    dHoursEast = m_pTsx->hourAngle(dEast);
-    dHoursWest = m_pTsx->hourAngle(dWest);
+    dHoursEast = m_pTSX->hourAngle(dEast);
+    dHoursWest = m_pTSX->hourAngle(dWest);
 
     m_bLimitCached = true;
     m_dHoursEast = dHoursEast;
@@ -724,11 +737,7 @@ int SiTech::isSlewToComplete(bool &bComplete)
 
     bComplete = false;
 
-    if(timer.GetElapsedSeconds()<2) {
-        // we're checking for comletion to quickly, assume it's moving for now
-        return nErr;
-    }
-    
+    // debug
     bComplete = true;
     return nErr;
     
@@ -842,8 +851,8 @@ int SiTech::Abort()
 {
     int nErr = PLUGIN_OK;
 
-    nErr = sendCommand(std::string("XG\r"), nullptr, SERIAL_BUFFER_SIZE);
-    nErr |= sendCommand(std::string("YG\r"), nullptr, SERIAL_BUFFER_SIZE);
+    nErr = sendCommand(std::string("XN\r"), nullptr, SERIAL_BUFFER_SIZE);
+    nErr |= sendCommand(std::string("YN\r"), nullptr, SERIAL_BUFFER_SIZE);
 
     return nErr;
 }
@@ -858,18 +867,22 @@ int SiTech::countsPerSecToSpeedValue(int cps)
 
 int SiTech::speedValueToCountsPerSec(int speed)
 {
-    return int(round(speed * 0.0298004150390625));
+    return int(speed * 0.0298004150390625);
 }
 
 
 int SiTech::degsPerSec2MotorSpeed(double dDegsPerSec, int nTicksPerRev)
 {
-    return int(round(nTicksPerRev * dDegsPerSec * 0.09321272116971));
+    double d1 = 1.0 / (m_dServoFreq * 0.0054931641);
+    double r1 = double(nTicksPerRev) * dDegsPerSec * d1;
+    return int(r1);
 }
 
-int SiTech::arcsecPerSec2MotorSpeed(double dArcsecPerSec, int nTicksPerRev)
+int SiTech::arcsecPerSec2MotorSpeed(double arcsecPerSec, int nTicksPerRev)
 {
-    return int(round(nTicksPerRev * dArcsecPerSec/3600 * 0.09321272116971));
+    double d1 = 1.0 / (m_dServoFreq * 0.0054931641);
+    double r1 = double(nTicksPerRev) * (arcsecPerSec/3600) * d1;
+    return int(r1);
 }
 
 double SiTech::motorSpeed2ArcsecPerSec(int nSpeed,  int nTicksPerRev)
@@ -881,6 +894,7 @@ double SiTech::motorSpeed2DegsPerSec(int nSpeed,  int nTicksPerRev)
 {
     return (double(nSpeed) / double(nTicksPerRev)) * 10.7281494140625;
 }
+
 
 int SiTech::getRaAzTickPerRev(int &nRaAzTickPerRev)
 {
@@ -924,9 +938,19 @@ double  SiTech::stepToDeg(int nSteps, int nTicksPerRev)
     return (double(nSteps)/double(nTicksPerRev)) * 360.0;
 }
 
+double  SiTech::stepToHa(int nSteps, int nTicksPerRev)
+{
+    return (double(nSteps)/double(nTicksPerRev)) * 24;
+}
+
 int SiTech::degToSteps(double dDegs,  int nTicksPerRev)
 {
     return int((double(nTicksPerRev) * dDegs)/ 360);
+}
+
+int SiTech::haToSteps(double dHa, int nTicksPerRev)
+{
+    return int((double(nTicksPerRev) * dHa)/ 24.0);
 }
 
 

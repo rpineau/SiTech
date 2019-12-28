@@ -306,11 +306,15 @@ int X2Mount::raDec(double& ra, double& dec, const bool& bCached)
         return ERR_NOLINK;
 
     X2MutexLocker ml(GetMutex());
-
+    double  dHa;
+    
 	// Get the RA and DEC from the mount
-	nErr = mSiTech.getRaAndDec(ra, dec);
+	nErr = mSiTech.getHaAndDec(dHa, dec);
     if(nErr)
         nErr = ERR_CMDFAILED;
+
+    // Subtract HA from lst to get ra;
+    ra = m_pTheSkyXForMounts->lst()-dHa;
 
 	return nErr;
 }

@@ -54,6 +54,9 @@ enum SiTechErrors {PLUGIN_OK=0, NOT_CONNECTED, PLUGIN_CANT_CONNECT, PLUGIN_BAD_C
 #define PLUGIN_ALIGNEMENT_NAME_LENGHT 12
 
 #define FarFarAway  1500000000
+#define SERVO_FREQ  1953.2
+
+#define SIDEREAL_TRACKING_SPEED 15.0410681
 
 // Define Class for SiTech controller.
 class SiTech
@@ -68,7 +71,7 @@ public:
 
     void setSerxPointer(SerXInterface *p) { m_pSerx = p; }
     void setLogger(LoggerInterface *pLogger) { m_pLogger = pLogger; };
-    void setTSX(TheSkyXFacadeForDriversInterface *pTSX) { m_pTsx = pTSX;};
+    void setTSX(TheSkyXFacadeForDriversInterface *pTSX) { m_pTSX = pTSX;};
     void setSleeper(SleeperInterface *pSleeper) { m_pSleeper = pSleeper;};
 
     int getNbSlewRates();
@@ -77,7 +80,7 @@ public:
 
     int getFirmwareVersion(char *version, unsigned int strMaxLen);
 
-    int getRaAndDec(double &dRa, double &dDec);
+    int getHaAndDec(double &dRa, double &dDec);
     int syncTo(double dRa, double dDec);
 
     int setTrackingRates(bool bTrackingOn, bool bIgnoreRates, double dRaRateArcSecPerSec, double dDecRateArcSecPerSec);
@@ -106,7 +109,7 @@ private:
 
     SerXInterface                       *m_pSerx;
     LoggerInterface                     *m_pLogger;
-    TheSkyXFacadeForDriversInterface    *m_pTsx;
+    TheSkyXFacadeForDriversInterface    *m_pTSX;
     SleeperInterface                    *m_pSleeper;
 
     char    m_szLogBuffer[PLUGIN_LOG_BUFFER_SIZE];
@@ -156,29 +159,35 @@ private:
     int     speedValueToCountsPerSec(int speed);
     
     int     degsPerSec2MotorSpeed(double dDegsPerSec, int nTicksPerRev);
-    int     arcsecPerSec2MotorSpeed(double dArcsecPerSec, int nTicksPerRev);
+    int     arcsecPerSec2MotorSpeed(double arcsecPerSec, int nTicksPerRev);
     
     double  motorSpeed2DegsPerSec(int nSpeed,  int nTicksPerRev);
     double  motorSpeed2ArcsecPerSec(int nSpeed,  int nTicksPerRev);
     
     double  stepToDeg(int nSteps, int nTicksPerRev);
-    int     degToSteps(double dDegs,  int nTicksPerRev);
+    double  stepToHa(int nSteps, int nTicksPerRev);
 
+    int     degToSteps(double dDegs,  int nTicksPerRev);
+    int     haToSteps(double dHa, int nTicksPerRev);
+    
     int     m_nRaAzTickPerRev;
     int     m_nDecAltTickPerRev;
-
+    int     m_nRaAzPos;
+    int     m_nDecAltPos;
+    
     CStopWatch      timer;
-
+    bool    m_bNorthHemisphere;
+    
     double  m_dRaAzRate;
     double  m_dDecAltRate;
     bool    m_bTracking;
+    double  m_dServoFreq;
     
     
     std::string&    trim(std::string &str, const std::string &filter );
     std::string&    ltrim(std::string &str, const std::string &filter);
     std::string&    rtrim(std::string &str, const std::string &filter);
     std::string     findField(std::vector<std::string> &svFields, const std::string& token);
-
     
 #ifdef PLUGIN_DEBUG
     std::string m_sLogfilePath;
