@@ -940,12 +940,12 @@ double  SiTech::stepToDeg(int nSteps, int nTicksPerRev)
 
 double  SiTech::stepToHa(int nSteps, int nTicksPerRev)
 {
-    return (double(nSteps)/double(nTicksPerRev)) * 24;
+    return (double(nSteps)/double(nTicksPerRev)) * 24.0;
 }
 
 int SiTech::degToSteps(double dDegs,  int nTicksPerRev)
 {
-    return int((double(nTicksPerRev) * dDegs)/ 360);
+    return int((double(nTicksPerRev) * dDegs)/ 360.0);
 }
 
 int SiTech::haToSteps(double dHa, int nTicksPerRev)
