@@ -23,26 +23,27 @@ if [ ! -d "$TheSkyX_Path" ]; then
     exit 1
 fi
 
-if [ -d "$TheSkyX_Path/Resources/Common/PlugIns64" ]; then
-	PLUGINS_DIR="PlugIns64"
+if [ -d "$TheSkyX_Path/PlugIns" ]; then
+	PLUGINS_DIR="$TheSkyX_Path/PlugIns"
+elif [ -d "$TheSkyX_Path/Resources/Common/PlugIns64" ]; then
+	PLUGINS_DIR="$TheSkyX_Path/Resources/Common/PlugIns64"
 else
-	PLUGINS_DIR="PlugIns"
-fi
+	PLUGINS_DIR="$TheSkyX_Path/Resources/Common/PlugIns"
 
-echo "Installing in $TheSkyX_Path/Resources/Common/$PLUGINS_DIR/MountPlugIns/"
+echo "Installing in $PLUGINS_DIR/MountPlugIns/"
 
 cp -f "/tmp/SiTech_X2/mountlist SiTech.txt" "$TheSkyX_Path/Resources/Common/Miscellaneous Files/"
 if [ "$?" -ne "0" ]; then exit 1; fi
-cp -f "/tmp/SiTech_X2/SiTech.ui" "$TheSkyX_Path/Resources/Common/$PLUGINS_DIR/MountPlugIns/"
+cp -f "/tmp/SiTech_X2/SiTech.ui" "$PLUGINS_DIR/MountPlugIns/"
 if [ "$?" -ne "0" ]; then exit 1; fi
-cp -f "/tmp/SiTech_X2/libSiTech.dylib" "$TheSkyX_Path/Resources/Common/$PLUGINS_DIR/MountPlugIns/"
+cp -f "/tmp/SiTech_X2/libSiTech.dylib" "$PLUGINS_DIR/MountPlugIns/"
 if [ "$?" -ne "0" ]; then exit 1; fi
 
 app_owner=`/usr/bin/stat -n -f "%u" "$TheSkyX_Path" | xargs id -n -u`
 if [ ! -z "$app_owner" ]; then
 	chown $app_owner "$TheSkyX_Path/Resources/Common/Miscellaneous Files/mountlist SiTech.txt"
-	chown $app_owner "$TheSkyX_Path/Resources/Common/$PLUGINS_DIR/MountPlugIns/SiTech.ui"
-	chown $app_owner "$TheSkyX_Path/Resources/Common/$PLUGINS_DIR/MountPlugIns/libSiTech.dylib"
+	chown $app_owner "$PLUGINS_DIR/MountPlugIns/SiTech.ui"
+	chown $app_owner "$PLUGINS_DIR/MountPlugIns/libSiTech.dylib"
 fi
 
 rm -rf /tmp/SiTech_X2
