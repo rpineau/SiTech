@@ -35,8 +35,12 @@ echo "Installing in $PLUGINS_DIR/MountPlugIns/"
 
 cp -f "/tmp/SiTech_X2/mountlist SiTech.txt" "$TheSkyX_Path/Resources/Common/Miscellaneous Files/"
 if [ "$?" -ne "0" ]; then exit 1; fi
+
+rm -f "$PLUGINS_DIR/MountPlugIns/SiTech.ui"
 cp -f "/tmp/SiTech_X2/SiTech.ui" "$PLUGINS_DIR/MountPlugIns/"
 if [ "$?" -ne "0" ]; then exit 1; fi
+
+rm -f "$PLUGINS_DIR/MountPlugIns/libSiTech.dylib"
 cp -f "/tmp/SiTech_X2/libSiTech.dylib" "$PLUGINS_DIR/MountPlugIns/"
 if [ "$?" -ne "0" ]; then exit 1; fi
 
