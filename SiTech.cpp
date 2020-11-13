@@ -42,6 +42,7 @@ SiTech::SiTech()
 	timestamp = asctime(localtime(&ltime));
 	timestamp[strlen(timestamp) - 1] = 0;
 	fprintf(Logfile, "[%s] SiTech New Constructor Called\n", timestamp);
+    fprintf(Logfile, "[%s] [SiTech::SiTech] version %3.2f build 2020_05_21_12_45.\n", timestamp, DRIVER_VERSION);
     fflush(Logfile);
 #endif
 

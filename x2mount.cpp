@@ -643,6 +643,12 @@ int X2Mount::gemLimits(double& dHoursEast, double& dHoursWest)
 	return SB_OK;
 }
 
+MountTypeInterface::Type X2Mount::mountType()
+{
+    return MountTypeInterface::Symmetrical_Equatorial;  // need to add an actual config in the UI for this.
+}
+
+
 
 #pragma mark - SerialPortParams2Interface
 

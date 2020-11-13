@@ -18,6 +18,7 @@
 #include "../../licensedinterfaces/mount/slewtointerface.h"
 #include "../../licensedinterfaces/mount/syncmountinterface.h"
 #include "../../licensedinterfaces/mount/asymmetricalequatorialinterface.h"
+#include "../../licensedinterfaces/mount/symmetricalequatorialinterface.h"
 #include "../../licensedinterfaces/mount/openloopmoveinterface.h"
 #include "../../licensedinterfaces/mount/needsrefractioninterface.h"
 #include "../../licensedinterfaces/mount/trackingratesinterface.h"
@@ -27,8 +28,6 @@
 
 // Include files for SiTech mount
 #include "SiTech.h"
-
-#define DRIVER_VERSION 1.00;
 
 #define PARENT_KEY			"SiTechMount"
 #define CHILD_KEY_PORT_NAME "PortName"
@@ -57,6 +56,7 @@ class X2Mount : public MountDriverInterface
 						,public SyncMountInterface
 						,public SlewToInterface
                         ,public AsymmetricalEquatorialInterface
+                        ,public SymmetricalEquatorialInterface
 						,public OpenLoopMoveInterface
 						,public TrackingRatesInterface
 						,public ParkInterface
@@ -134,10 +134,9 @@ public:
 	virtual int beyondThePole(bool& bYes);
     virtual double flipHourAngle();
     virtual int gemLimits(double& dHoursEast, double& dHoursWest);
-
-	// Leave the following functions as virtual since we don't use them - the defaults are fine.
-	// virtual double flipHourAngle();
-	// virtual int gemLimits(double& dHoursEast, double& dHoursWest);
+    
+    // SymmetricalEquatorialInterface
+    virtual MountTypeInterface::Type mountType();
 	
 	//OpenLoopMoveInterface
 	virtual int								startOpenLoopMove(const MountDriverInterface::MoveDir& Dir, const int& nRateIndex);
