@@ -40,13 +40,20 @@ DirExistsWarning=no
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
+[Dirs]
+Name: "{app}\Plugins\MountPlugIns";
+Name: "{app}\Plugins64\MountPlugIns";
+
 [Files]
-; WIll also need to customise these!
-Source: "mountlist SiTech.txt"; DestDir: "{app}\Miscellaneous Files"; Flags: ignoreversion
-Source: "libSiTech\Release\libSiTech.dll"; DestDir: "{app}\Plugins\MountPlugIns"; Flags: ignoreversion
-Source: "SiTech.ui"; DestDir: "{app}\Plugins\MountPlugIns"; Flags: ignoreversion
-; NOTE: Don't use "Flags: ignoreversion" on any shared system files
-; msgBox('Do you want to install MyProg.exe to ' + ExtractFilePath(CurrentFileName) + '?', mbConfirmation, MB_YESNO)
+Source: "mountlist SiTech.txt";                     DestDir: "{app}\Miscellaneous Files"; Flags: ignoreversion
+Source: "mountlist SiTech.txt";                     DestDir: "{app}\Miscellaneous Files"; Flags: ignoreversion; DestName: "mountlist64 SiTech.txt"
+; 32 bits
+Source: "libSiTech\Win32\Release\libSiTech.dll";    DestDir: "{app}\Plugins\MountPlugIns"; Flags: ignoreversion
+Source: "SiTech.ui";                                DestDir: "{app}\Plugins\MountPlugIns"; Flags: ignoreversion
+; 64 bits
+Source: "libSiTech\x64\Release\libSiTech.dll";      DestDir: "{app}\Plugins64\MountPlugIns"; Flags: ignoreversion; Check: DirExists(ExpandConstant('{app}\Plugins64\MountPlugIns'))
+Source: "SiTech.ui";                                DestDir: "{app}\Plugins64\MountPlugIns"; Flags: ignoreversion; Check: DirExists(ExpandConstant('{app}\Plugins64\MountPlugIns'))
+
 
 [Code]
 {* Below are functions to read TheSkyXInstallPath.txt and confirm that the directory does exist
